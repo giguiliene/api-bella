@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão de Produtos</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 80vh;
+      background-color: #d9c8e2;
+    }
+
+    .container {
+      background-color: #f9f9f9;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      width: 800px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    input {
+      width: calc(100% - 20px);
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #ff4da6;
+      color: white;
+      font-size: 16px;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    button:hover {
+      background-color: #e63996;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    th {
+      background-color: #8de1e6;
+    }
+
+    td {
+      background-color: #e0f7fa;
+    }
+
+    .delete-btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .delete-btn:hover {
+      background-color: #c82333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Gestão de Produtos</h1>
+    <input type="text" id="productName" placeholder="Nome do Produto">
+    <input type="number" id="productPrice" placeholder="Preço (R$)">
+    <button onclick="addOrUpdateProduct()">Salvar Produto</button>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Preço (R$)</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="productTable">
+        <!-- Dados dinâmicos serão inseridos aqui -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const API_URL = 'http://127.0.0.1:8000/api/produtos/';
+    const TOKEN = 'a2876b5903f94c6932392172bbcb06339da2c8f9';
+    let products = [];
+    let editIndex = -1;
+  
+    // Buscar os produtos da API
+    async function fetchProducts() {
+      try {
+        const response = await fetch(API_URL, {
+          headers: {
+            'Authorization': `Token ${TOKEN}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error("Erro ao buscar produtos.");
+        }
+        const productsList = await response.json();
+        renderTable(productsList);
+      } catch (error) {
+        console.error(error);
+        alert("Não foi possível carregar os produtos.");
+      }
+    }
+  
+    // Adicionar ou atualizar produto
+    async function addOrUpdateProduct() {
+      const name = document.getElementById("productName").value.trim();
+      let price = document.getElementById("productPrice").value.trim();
+
+      if (!name || !price) {
+        alert("Preencha todos os campos corretamente!");
+        return;
+      }
+
+      // Substituir vírgula por ponto para o formato correto
+      price = price.replace(',', '.');
+
+      // Verificar se o preço é um número válido
+      price = parseFloat(price);
+      if (isNaN(price)) {
+        alert("Preço inválido. Use o formato correto.");
+        return;
+      }
+
+      const productData = { nome: name, preco: price };
+
+      try {
+        let response;
+        if (editIndex === -1) {
+          // Criar novo produto
+          response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Token ${TOKEN}`,
+            },
+            body: JSON.stringify(productData),
+          });
+        } else {
+          // Atualizar produto existente
+          const productId = products[editIndex].id;
+          response = await fetch(`${API_URL}${productId}/`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Token ${TOKEN}`,
+            },
+            body: JSON.stringify(productData),
+          });
+          editIndex = -1;
+        }
+
+        if (!response.ok) {
+          const errorDetails = await response.json();
+          console.error('Erro da API:', errorDetails);
+          throw new Error("Erro ao salvar o produto.");
+        }
+
+        document.getElementById("productName").value = "";
+        document.getElementById("productPrice").value = "";
+        fetchProducts();
+      } catch (error) {
+        console.error(error);
+        alert("Erro ao salvar o produto.");
+      }
+    }
+
+  
+    // Deletar produto
+    async function deleteProduct(index) {
+      const productId = products[index].id;
+      try {
+        const response = await fetch(`${API_URL}${productId}/`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Token ${TOKEN}`,
+          }
+        });
+        if (!response.ok) {
+          const errorDetails = await response.json();
+          console.error('Erro da API ao deletar:', errorDetails);
+          throw new Error("Erro ao deletar o produto.");
+        }
+        fetchProducts();
+      } catch (error) {
+        console.error(error);
+        alert("Erro ao deletar o produto.");
+      }
+    }
+  
+    // Renderizar a tabela de produtos
+    function renderTable(productsList) {
+      const tableBody = document.getElementById("productTable");
+      tableBody.innerHTML = ""; // Limpa a tabela
+  
+      products = productsList;
+      products.forEach((product, index) => {
+        const row = `
+          <tr>
+            <td>${product.nome}</td>
+            <td>${parseFloat(product.preco).toFixed(2)}</td>
+            <td>
+              <button onclick="editProduct(${index})">Editar</button>
+              <button class="delete-btn" onclick="deleteProduct(${index})">Deletar</button>
+            </td>
+          </tr>
+        `;
+        tableBody.innerHTML += row;
+      });
+    }
+  
+    // Editar produto
+    function editProduct(index) {
+      document.getElementById("productName").value = products[index].nome;
+      document.getElementById("productPrice").value = products[index].preco;
+      editIndex = index;
+    }
+  
+    // Carregar os produtos ao carregar a página
+    fetchProducts();
+  </script>
+  
+</body>
+</html>
